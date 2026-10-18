@@ -30,12 +30,14 @@ If you use Anaconda/Spyder (or IDLE, VS Code, PyCharm):
 1. Download this branch as a ZIP from GitHub (green **Code** button, then
    **Download ZIP**) and unzip it.
 2. In Spyder, use **File > Open** to open `run.py` from the unzipped folder.
-3. Change `SYMBOL = "AAPL"` near the top to the stock you want, e.g. `"TCS.NS"`.
-4. Press **Run** (F5).
+3. Press **Run** (F5).
+4. When the console asks *"Which stock?"*, type a symbol (e.g. `TSLA` or `TCS.NS`,
+   or several: `AAPL, TCS.NS`) and press Enter.
 
 The first run installs the missing packages automatically. The report appears in
 the console and the price chart opens in your browser. For the full dashboard, set
-`MODE = "dashboard"` and press Run again; to stop it, click the red Stop square
+`MODE = "dashboard"` and press Run again. It opens on the stock you typed, and you can
+switch stocks from the dropdown in its sidebar. To stop it, click the red Stop square
 above the console.
 
 ## Install

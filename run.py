@@ -1,11 +1,14 @@
 """The easy way to run stocklens: open this file in Spyder (or IDLE, VS Code,
 PyCharm) and press Run (F5). No terminal needed.
 
-1. Change SYMBOL below to the stock you want.
-2. Press Run. The first run installs the packages it needs (a few minutes).
+Press Run, then type the stock you want in the console when asked, e.g.
+TSLA or TCS.NS (several at once: AAPL, TCS.NS). The first run installs the
+packages it needs (a few minutes).
 """
 
-SYMBOL = "AAPL"     # US: AAPL, MSFT, TSLA   India: INFY.NS, TCS.NS, RELIANCE.NS (NSE) or RELIANCE.BO (BSE)
+ASK = True          # True: ask which stock in the console every time you press Run
+SYMBOL = "AAPL"     # used when ASK is False, or when you just press Enter at the question
+                    # US: AAPL, MSFT, TSLA   India: INFY.NS, TCS.NS, RELIANCE.NS (NSE) or RELIANCE.BO (BSE)
 PERIOD = "1y"       # 1mo, 3mo, 6mo, 1y, 2y, 5y
 MODE = "report"     # "report"    = text report in the console + price chart in your browser
                     # "dashboard" = the full interactive dashboard in your browser
@@ -21,6 +24,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.parse
 import urllib.request
 import webbrowser
 from pathlib import Path
@@ -55,14 +59,24 @@ def ensure(packages):
     return True
 
 
-def report():
+def choose_symbols():
+    if not ASK:
+        return [SYMBOL]
+    try:
+        answer = input(f"Which stock? e.g. AAPL, TSLA, TCS.NS, RELIANCE.NS  (press Enter for {SYMBOL}): ")
+    except EOFError:  # no console to type in
+        answer = ""
+    return answer.replace(",", " ").split() or [SYMBOL]
+
+
+def report(symbol):
     from stocklens.cli import format_report
     from stocklens.report import NoPriceData, build
 
     logging.getLogger("yfinance").setLevel(logging.CRITICAL)  # hide yfinance's internal retry messages
-    print(f"Fetching {SYMBOL} (prices, financials, filings, news)... this takes 10-30 seconds.\n")
+    print(f"\nFetching {symbol.upper()} (prices, financials, filings, news)... this takes 10-30 seconds.\n")
     try:
-        r = build(SYMBOL, period=PERIOD)
+        r = build(symbol, period=PERIOD)
     except (NoPriceData, ValueError) as exc:
         print(exc)
         return
@@ -80,9 +94,9 @@ def report():
         print(f"\nChart opened in your browser. If it didn't, open this file: {path}")
 
 
-def dashboard():
+def dashboard(symbol):
     url = f"http://localhost:{PORT}"
-    print("Starting the dashboard...")
+    print(f"Starting the dashboard on {symbol.upper()} (you can switch stocks in its sidebar)...")
     proc = subprocess.Popen(
         [python_exe(), "-m", "streamlit", "run", str(HERE / "app.py"), "--server.port", str(PORT),
          "--server.headless", "true", "--browser.gatherUsageStats", "false"],
@@ -97,7 +111,7 @@ def dashboard():
                 break
             except OSError:
                 time.sleep(0.5)
-        webbrowser.open(url)
+        webbrowser.open(f"{url}/?symbol={urllib.parse.quote(symbol.upper(), safe='')}")
         print(f"Dashboard running at {url} (opened in your browser).")
         print("To stop it: click the red square (Stop) above the console, or restart the console.")
         while proc.poll() is None:  # not proc.wait(): on Windows that can't be interrupted by Stop
@@ -116,4 +130,9 @@ if __name__ == "__main__":
     else:
         sys.path.insert(0, str(HERE))
         if ensure({**CORE, **DASHBOARD} if MODE == "dashboard" else CORE):
-            dashboard() if MODE == "dashboard" else report()
+            symbols = choose_symbols()
+            if MODE == "dashboard":
+                dashboard(symbols[0])
+            else:
+                for sym in symbols:
+                    report(sym)

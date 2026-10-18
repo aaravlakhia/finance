@@ -11,6 +11,14 @@ st.set_page_config(page_title="stocklens", page_icon="📈", layout="wide")
 
 MARKETS = {"Auto (US unless .NS/.BO)": None, "US": "us", "India - NSE": "nse", "India - BSE": "bse"}
 TONE_LABEL = {1: "▲ positive", -1: "▼ negative", 0: "· neutral"}
+POPULAR = {
+    "AAPL": "Apple", "MSFT": "Microsoft", "NVDA": "Nvidia", "GOOGL": "Alphabet (Google)",
+    "AMZN": "Amazon", "META": "Meta", "TSLA": "Tesla",
+    "RELIANCE.NS": "Reliance Industries", "TCS.NS": "Tata Consultancy Services",
+    "HDFCBANK.NS": "HDFC Bank", "INFY.NS": "Infosys", "ICICIBANK.NS": "ICICI Bank",
+    "SBIN.NS": "State Bank of India", "BHARTIARTL.NS": "Bharti Airtel", "ITC.NS": "ITC",
+    "LT.NS": "Larsen & Toubro", "HINDUNILVR.NS": "Hindustan Unilever",
+}
 
 
 @st.cache_data(ttl=900, show_spinner=False)
@@ -33,7 +41,13 @@ def theme_mode() -> str:
 with st.sidebar:
     st.title("📈 stocklens")
     st.caption("Trend · financials · events · filings · news")
-    symbol = st.text_input("Symbol", "AAPL", help="AAPL, MSFT, INFY.NS, TCS.NS, RELIANCE.BO, NSE:HDFCBANK")
+    # run.py opens the page as ?symbol=TCS.NS so the dashboard starts on the stock you asked for.
+    start = (st.query_params.get("symbol") or "AAPL").strip().upper()
+    options = list(POPULAR) if start in POPULAR else [start, *POPULAR]
+    symbol = st.selectbox(
+        "Stock", options, index=options.index(start), accept_new_options=True,
+        format_func=lambda s: f"{s} · {POPULAR[s]}" if s in POPULAR else s,
+        help="Pick one, or type any symbol and press Enter: TSLA, WIPRO.NS, RELIANCE.BO, NSE:HDFCBANK")
     market = MARKETS[st.radio("Market", list(MARKETS))]
     period = st.selectbox("Chart period", PERIODS, index=PERIODS.index("1y"))
     with st.expander("Options"):
@@ -43,8 +57,8 @@ with st.sidebar:
         show_macd = st.checkbox("MACD panel", False)
     st.caption(DISCLAIMER)
 
-if not symbol.strip():
-    st.info("Enter a stock symbol in the sidebar.")
+if not symbol or not symbol.strip():
+    st.info("Pick or type a stock in the sidebar.")
     st.stop()
 
 try:
