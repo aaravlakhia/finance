@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stocklens"
+version = "0.1.0"
+description = "Lightweight stock research tool for US and Indian markets: trends, financials, events, filings and news in one place."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["yfinance>=0.2.54", "pandas>=2.0", "requests>=2.28"]
+
+[project.optional-dependencies]
+dashboard = ["streamlit>=1.46", "plotly>=5.19"]
+dev = ["pytest>=7"]
+
+[project.scripts]
+stocklens = "stocklens.cli:main"
+
+[tool.setuptools]
+packages = ["stocklens"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

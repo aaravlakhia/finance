@@ -1,0 +1,4 @@
+# Optional: the browser dashboard (streamlit run app.py)
+-r requirements.txt
+streamlit>=1.46
+plotly>=5.19
