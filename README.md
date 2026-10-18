@@ -23,6 +23,21 @@ model to download. The core needs only `yfinance`, `pandas` and `requests`.
 > For research and learning only, not financial advice. Signals describe past price
 > behaviour; they do not predict future prices.
 
+## Easiest: run it from Spyder (no terminal)
+
+If you use Anaconda/Spyder (or IDLE, VS Code, PyCharm):
+
+1. Download this branch as a ZIP from GitHub (green **Code** button, then
+   **Download ZIP**) and unzip it.
+2. In Spyder, use **File > Open** to open `run.py` from the unzipped folder.
+3. Change `SYMBOL = "AAPL"` near the top to the stock you want, e.g. `"TCS.NS"`.
+4. Press **Run** (F5).
+
+The first run installs the missing packages automatically. The report appears in
+the console and the price chart opens in your browser. For the full dashboard, set
+`MODE = "dashboard"` and press Run again; to stop it, click the red Stop square
+above the console.
+
 ## Install
 
 Python 3.10 or newer.
