@@ -260,3 +260,24 @@ def target_chart(price: float, low: float, mean: float, high: float, market, mod
     fig.update_xaxes(range=[lo_x - pad, hi_x + pad], showspikes=False, showticklabels=False, linecolor="rgba(0,0,0,0)")
     fig.update_yaxes(visible=False, range=[-1, 1])
     return fig
+
+
+def pulse_chart(table: pd.DataFrame, mode: str = "light") -> go.Figure:
+    """Headlines per week: positive and neutral stacked above the line, negative below it."""
+    t = THEMES[mode]
+    fig = go.Figure()
+    spec = (("Positive", "#0ca30c", 1), ("Neutral", t["muted"], 1), ("Negative", "#d03b3b", -1))
+    for col, color, sign in spec:
+        fig.add_trace(go.Bar(x=table.index, y=table[col] * sign, name=col,
+                             marker=dict(color=color, line=dict(width=0)), customdata=table[col],
+                             hovertemplate=f"{col}: %{{customdata}} headline(s)<extra></extra>"))
+    _base_layout(fig, t, 260)
+    fig.update_layout(barmode="relative", bargap=0.35, barcornerradius=3, margin=dict(l=48, r=8, t=36, b=36))
+    fig.update_xaxes(showspikes=False, tickformat="%d %b")
+    top = int((table["Positive"] + table["Neutral"]).max())
+    bottom = int(table["Negative"].max())
+    step = max(1, (top + bottom) // 6)
+    ticks = list(range(-bottom, top + 1, step)) or [0]
+    fig.update_yaxes(title_text="Headlines", zeroline=True, zerolinecolor=t["axis"], zerolinewidth=1,
+                     tickvals=ticks, ticktext=[str(abs(v)) for v in ticks])  # counts below the line are negatives
+    return fig

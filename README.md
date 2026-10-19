@@ -1,7 +1,7 @@
 # stocklens
 
-A lightweight Python tool for researching **US and Indian stocks**. Type a symbol and
-it pulls together, in one place:
+A lightweight Python tool for researching **any US or Indian stock** (search by
+company name or symbol). It pulls together, in one place:
 
 - **Price trend:** 50/200-day moving averages, RSI, MACD, Bollinger bands, volume,
   performance and volatility, turned into plain-English signals.
@@ -32,6 +32,14 @@ it pulls together, in one place:
 - **Invest calculator:** what a one-time investment or a monthly SIP would be
   worth today (with XIRR).
 - **Watchlist:** cards with mini charts for up to 8 stocks at the top of the dashboard.
+- **News & impact:** recent headlines and official filings grouped by type
+  (results & revenue, meetings & AGMs, dividends, management, deals, analyst
+  views, legal issues), each with an impact rating, what that kind of news usually
+  means, and how much it has moved *this* stock before; plus a weekly news pulse
+  and upcoming catalysts.
+- **Market scanner:** rank ~50 large Indian or US stocks (or your own list) by
+  trend and performance, with top gainers, fallers, stocks near their high and
+  oversold stocks. Click one to open the full view.
 
 It runs on an ordinary laptop. There's no database, no API keys and no machine-learning
 model to download. The core needs only `yfinance`, `pandas` and `requests`.
@@ -81,6 +89,7 @@ python -m stocklens TCS -m in            # bare symbol, treat as India (NSE)
 python -m stocklens AAPL -p 6mo -n 30    # 6-month window, show 30 timeline items
 python -m stocklens AAPL MSFT INFY.NS    # watchlist: one line per stock
 python -m stocklens AAPL --no-news       # faster, skip news
+python -m stocklens --scan in            # rank ~50 large Indian stocks (or: --scan us)
 ```
 
 What the sections look like (illustrative, trimmed):
@@ -187,6 +196,10 @@ stocklens/
   scorecard.py          the six-pillar investment checklist
   briefing.py           the plain-English summary
   invest.py             lump-sum and SIP calculators (with XIRR)
+  impact.py             news grouping, "what it means", historical news impact
+  search.py             find any US / Indian stock by name (Yahoo search)
+  scanner.py            rank many stocks from one price download
+  universe.py           ready-made lists for the scanner
   charts.py             Plotly charts for the dashboard
 tests/                  offline tests (no network needed)
 ```

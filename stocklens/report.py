@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 import pandas as pd
 import yfinance as yf
 
-from . import briefing, filings, forecast, fundamentals, marketdata, news, scorecard, signals, timeline
+from . import briefing, filings, forecast, fundamentals, impact, marketdata, news, scorecard, signals, timeline
 from .indicators import add_all
 from .models import Item, Signal
 from .symbols import Ticker, resolve
@@ -57,10 +57,14 @@ class Report:
     checklist_score: float | None = None
     checklist_label: str = ""
     briefing: list[str] = field(default_factory=list)
+    # how each kind of news has moved this stock (see impact.py)
+    topic_stats: dict = field(default_factory=dict)
 
     @property
     def red_flags(self) -> list[Item]:
-        return [i for i in self.timeline if i.red_flag]
+        """Red flags within the chart period (older ones stay in the timeline)."""
+        start = self.prices.index[0]
+        return [i for i in self.timeline if i.red_flag and i.when >= start]
 
     @property
     def last_close(self) -> float:
@@ -116,7 +120,8 @@ def build(symbol: str, market: str | None = None, period: str = "1y",
     # News and filings come from other sites, so fetch them while we talk to Yahoo.
     with ThreadPoolExecutor(max_workers=2) as pool:
         news_job = pool.submit(news.fetch, name, ticker, news_limit) if include_news else None
-        filings_job = pool.submit(filings.fetch, ticker, start) if include_filings else None
+        # Filings for the whole history give the news-impact statistics more to work with.
+        filings_job = pool.submit(filings.fetch, ticker, hist.index[0]) if include_filings else None
 
         quarterly, annual, fin_warnings = fundamentals.fetch(yt)
         warnings += fin_warnings
@@ -133,8 +138,7 @@ def build(symbol: str, market: str | None = None, period: str = "1y",
     warnings += news_warnings + filing_warnings
 
     news_items = news.merge([yahoo_items, google_items], news_limit)
-    events = [i for i in earnings + marketdata.corporate_actions(prices)
-              if i.when.tz_convert(ticker.market.timezone) >= start]
+    events = earnings + marketdata.corporate_actions(hist)
     items = news_items + filing_items + events
     timeline.attach_reactions(items, hist, ticker.market)
     items.sort(key=lambda i: i.when, reverse=True)
@@ -155,5 +159,6 @@ def build(symbol: str, market: str | None = None, period: str = "1y",
     )
     r.pillars = scorecard.evaluate(r)
     r.checklist_score, r.checklist_label = scorecard.overall(r.pillars)
+    r.topic_stats = impact.history(items, hist)
     r.briefing = briefing.summarize(r)
     return r

@@ -3,6 +3,7 @@
 import pandas as pd
 
 from . import fmt
+from .impact import headline
 
 
 def _pct(x: float) -> str:
@@ -47,7 +48,7 @@ def summarize(r) -> list[str]:
         f = flags[0]
         day_s = f.when.tz_convert(m.timezone).strftime("%d %b %Y")
         count = "1 red flag" if len(flags) == 1 else f"{len(flags)} red flags"
-        s = f'{count} in recent news and filings; the latest is "{f.title}" ({day_s}'
+        s = f'{count} in recent news and filings; the latest is "{headline(f)}" ({day_s}'
         if f.reaction is not None:
             s += f", stock {fmt.pct(f.reaction)} that day"
         out.append(s + ").")

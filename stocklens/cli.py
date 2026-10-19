@@ -5,8 +5,10 @@ import logging
 import sys
 import textwrap
 
-from . import DISCLAIMER, fmt
+from . import DISCLAIMER, fmt, impact, scanner, universe
 from .report import PERIODS, NoPriceData, Report, build
+from .impact import headline
+from .symbols import resolve
 from .timeline import is_unusual
 
 WIDTH = 78
@@ -31,7 +33,7 @@ def _item_line(item, r: Report) -> str:
         if is_unusual(item.reaction, r.prices):
             reaction += " (big move)"
     day = item.when.tz_convert(m.timezone).strftime("%Y-%m-%d")
-    return _wrap(f"{flag} {day} {tags}{item.title} ({item.source}){reaction}", 13)
+    return _wrap(f"{flag} {day} {tags}{headline(item)} ({item.source}){reaction}", 13)
 
 
 def format_report(r: Report, news_count: int = 15) -> str:
@@ -93,6 +95,22 @@ def format_report(r: Report, news_count: int = 15) -> str:
         out.append(f"  Vs {m.benchmark_name} (1y): stock {fmt.pct(rel['stock'])}, index {fmt.pct(rel['index'])}, "
                    f"beta {fmt.number(rel['beta'])}")
 
+    groups = impact.grouped(r.timeline)
+    if groups:
+        out += ["", _rule("NEWS & IMPACT (what's been happening and how it tends to move the stock)")]
+        for topic, items in groups.items():
+            head = f"  {impact.TITLES[topic]} ({len(items)})"
+            st = r.topic_stats.get(topic)
+            if st and st.days >= 3:
+                head += f" - has moved the stock {st.avg_size:.1%} on average ({st.vs_normal:.1f}x a normal day)"
+            out.append(head)
+            for item in items[:3]:
+                direction, strength = impact.rating(item, r.topic_stats)
+                day = item.when.tz_convert(m.timezone).strftime("%Y-%m-%d")
+                move = f" -> {fmt.pct(item.reaction)}" if item.reaction is not None else ""
+                out.append(_wrap(f"    {day} {impact.headline(item)} [{direction}, {strength} impact]{move}", 15))
+            out.append(_wrap(f"    Means: {impact.meaning(items[0])}", 11))
+
     out += ["", _rule(f"TREND  {r.verdict} (score {r.score:+d})")]
     for s in r.signals:
         out.append(_wrap(f"  {TONE[s.tone]} {s.text}", 4))
@@ -151,13 +169,31 @@ def format_watchlist(reports: list[Report]) -> str:
     return "\n".join(rows)
 
 
+SCANS = {"in": universe.INDIA_LARGE, "us": universe.US_LARGE}
+
+
+def format_scan(table, failed: list[str]) -> str:
+    if table.empty:
+        return "No price data came back. Check your internet connection."
+    t = table.sort_values("1M", ascending=False)
+    rows = [f"{'Symbol':<15}{'Price':>13}{'1D':>8}{'1M':>8}{'1Y':>9}{'RSI':>6}  {'Trend':<10}{'From high':>10}"]
+    for sym, row in t.iterrows():
+        rows.append(f"{sym:<15}{fmt.price(row['Price'], resolve(sym).market):>13}{fmt.pct(row['1D']):>8}"
+                    f"{fmt.pct(row['1M']):>8}{fmt.pct(row['1Y']):>9}{fmt.number(row['RSI'], 0):>6}  "
+                    f"{row['Trend']:<10}{fmt.pct(row['From 52w high']):>10}")
+    if failed:
+        rows.append(f"\nSkipped (no data): {', '.join(failed)}")
+    return "\n".join(rows)
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         prog="stocklens",
         description="Trend, financials, events, filings and news for US and Indian stocks.",
         epilog="Examples: stocklens AAPL | stocklens INFY.NS | stocklens TCS RELIANCE -m in | "
                "stocklens AAPL MSFT INFY.NS (watchlist)")
-    ap.add_argument("symbols", nargs="+", help="e.g. AAPL, MSFT, INFY.NS, RELIANCE.BO, NSE:TCS")
+    ap.add_argument("symbols", nargs="*", help="e.g. AAPL, MSFT, INFY.NS, RELIANCE.BO, NSE:TCS")
+    ap.add_argument("--scan", choices=sorted(SCANS), help="rank ~50 large stocks: 'in' (India) or 'us'")
     ap.add_argument("-m", "--market", choices=["us", "in", "nse", "bse"],
                     help="market for symbols without a suffix (default: us)")
     ap.add_argument("-p", "--period", default="1y", choices=PERIODS, help="chart window (default 1y)")
@@ -173,6 +209,12 @@ def main(argv: list[str] | None = None) -> int:
         logging.getLogger("yfinance").setLevel(logging.CRITICAL)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(errors="replace")  # old Windows consoles can't print ₹
+
+    if args.scan:
+        print(format_scan(*scanner.scan(SCANS[args.scan])))
+        return 0
+    if not args.symbols:
+        ap.error("give at least one symbol, or use --scan in / --scan us")
 
     reports, failed = [], 0
     for sym in args.symbols:
