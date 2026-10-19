@@ -33,6 +33,27 @@ def risk_stats(df: pd.DataFrame) -> dict[str, float]:
     }
 
 
+def relative(close: pd.Series, bench: pd.Series, days: int = 252) -> dict | None:
+    """Stock vs index over the last `days` trading days: returns, gap and beta."""
+    if bench is None or bench.empty:
+        return None
+    def by_day(s: pd.Series) -> pd.Series:
+        idx = s.index.tz_localize(None) if s.index.tz is not None else s.index
+        return pd.Series(s.to_numpy(), index=idx.normalize())
+
+    a, b = by_day(close), by_day(bench)
+    both = pd.concat([a, b], axis=1, keys=["stock", "index"], sort=True).dropna().iloc[-(days + 1):]
+    if len(both) < 30:
+        return None
+    rets = both.pct_change().dropna()
+    stock_ret = both["stock"].iloc[-1] / both["stock"].iloc[0] - 1
+    index_ret = both["index"].iloc[-1] / both["index"].iloc[0] - 1
+    var = rets["index"].var()
+    return {"stock": stock_ret, "index": index_ret, "gap": stock_ret - index_ret,
+            "beta": rets["stock"].cov(rets["index"]) / var if var > 0 else np.nan,
+            "start": both.index[0].date()}
+
+
 def _crossed(a: pd.Series, b: pd.Series, lookback: int) -> tuple[str | None, int | None]:
     """Did series a cross b within the last `lookback` rows? Returns (direction, days_ago)."""
     above = (a > b).where(a.notna() & b.notna())

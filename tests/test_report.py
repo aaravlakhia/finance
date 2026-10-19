@@ -16,7 +16,10 @@ class FakeTicker:
         self._prices = make_prices(days=520, tz=tz, start="2024-09-02")
         self._prices.iloc[-60, self._prices.columns.get_loc("Dividends")] = 4.5
         self.info = {"longName": "Acme Industries Limited", "sector": "Technology",
-                     "industry": "IT Services", "marketCap": 6.3e12, "trailingPE": 24.1}
+                     "industry": "IT Services", "marketCap": 6.3e12, "trailingPE": 24.1, "forwardPE": 21.0,
+                     "profitMargins": 0.17, "returnOnEquity": 0.3, "revenueGrowth": 0.08, "debtToEquity": 20.0,
+                     "targetLowPrice": 120.0, "targetMeanPrice": 150.0, "targetHighPrice": 180.0,
+                     "recommendationKey": "buy", "numberOfAnalystOpinions": 30}
         cols = pd.to_datetime(["2026-06-30", "2026-03-31", "2025-12-31", "2025-09-30"])
         self.quarterly_income_stmt = pd.DataFrame(
             [[4.2e11, 4.0e11, 3.9e11, 3.8e11], [7.1e10, 6.5e10, 6.4e10, 6.0e10], [17.1, 15.7, 15.4, 14.5]],
@@ -62,8 +65,18 @@ def test_build_india_report(fake_sources):
     assert r.dividend_yield and r.dividend_yield > 0
     assert len(r.moves) == 5
 
+    # prediction lab, market context, checklist and briefing
+    assert list(r.ranges.index) == ["1 month", "3 months", "6 months"] and len(r.cone) == 63
+    assert r.analogs and r.backtest and r.relative and r.relative["beta"] == pytest.approx(1.0)
+    assert len(r.pillars) == 6 and 0 <= r.checklist_score <= 10 and r.checklist_label
+    brief = " ".join(r.briefing)
+    for phrase in ("Acme Industries Limited is at ₹", "NIFTY 50", "1 red flag", "likely (50%)",
+                   "Investment checklist"):
+        assert phrase in brief
+
     text = cli.format_report(r)
-    for heading in ("TREND", "FINANCIALS", "COMING UP", "RED FLAGS (1)", "BIGGEST MOVES", "TIMELINE"):
+    for heading in ("BRIEFING", "INVESTMENT CHECKLIST", "OUTLOOK", "TREND", "FINANCIALS", "COMING UP",
+                    "RED FLAGS (1)", "BIGGEST MOVES", "TIMELINE"):
         assert heading in text
     assert "₹6.30 lakh Cr" in text
     assert "Regulator opens probe" in text
@@ -98,7 +111,12 @@ def test_bad_period():
 def test_charts_build(fake_sources):
     charts = pytest.importorskip("stocklens.charts")
     r = report.build("AAPL", period="1y")
+    m = r.ticker.market
     for mode in ("light", "dark"):
-        fig = charts.price_chart(r.prices, r.timeline, r.ticker.market, mode, show_bands=True, show_macd=True)
-        assert any(t.name == "Red flag" for t in fig.data)
-        charts.financials_chart(r.quarterly, r.ticker.market, mode)
+        fig = charts.price_chart(r.prices, r.timeline, m, mode, show_bands=True, show_macd=True, cone=r.cone)
+        names = {t.name for t in fig.data}
+        assert {"Red flag", "Likely range (50%)", "Very likely range (90%)"} <= names
+        charts.financials_chart(r.quarterly, m, mode)
+        assert charts.vs_market_chart(r.prices["Close"], r.benchmark, "AAPL", m.benchmark_name, mode)
+        charts.lines_chart(r.backtest["equity"] * 100, ["#000", "#111"], mode)
+        charts.target_chart(r.last_close, 120, 150, 180, m, mode)

@@ -15,12 +15,14 @@ class Market:
     close_time: time
     # Google News locale parameters: (hl, gl, ceid)
     news_locale: tuple[str, str, str]
+    benchmark: str          # Yahoo symbol of the main index
+    benchmark_name: str
 
 
 US = Market("US", "United States", "USD", "$", "America/New_York", time(16, 0),
-            ("en-US", "US", "US:en"))
+            ("en-US", "US", "US:en"), "^GSPC", "S&P 500")
 INDIA = Market("IN", "India", "INR", "₹", "Asia/Kolkata", time(15, 30),
-               ("en-IN", "IN", "IN:en"))
+               ("en-IN", "IN", "IN:en"), "^NSEI", "NIFTY 50")
 
 
 @dataclass(frozen=True)

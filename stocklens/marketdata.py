@@ -15,6 +15,12 @@ PROFILE_KEYS = [
     "longName", "shortName", "sector", "industry", "marketCap", "trailingPE", "forwardPE",
     "priceToBook", "dividendYield", "currency", "financialCurrency", "exchange", "website",
     "longBusinessSummary", "fiftyTwoWeekHigh", "fiftyTwoWeekLow", "beta",
+    # quality and health (fractions, except debtToEquity which Yahoo gives in percent)
+    "profitMargins", "returnOnEquity", "revenueGrowth", "earningsGrowth", "debtToEquity",
+    "currentRatio", "freeCashflow",
+    # analysts and ownership
+    "targetMeanPrice", "targetHighPrice", "targetLowPrice", "recommendationKey",
+    "numberOfAnalystOpinions", "heldPercentInsiders", "heldPercentInstitutions",
 ]
 
 _NAME_SUFFIXES = (

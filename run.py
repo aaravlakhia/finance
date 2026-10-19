@@ -10,8 +10,8 @@ ASK = True          # True: ask which stock in the console every time you press 
 SYMBOL = "AAPL"     # used when ASK is False, or when you just press Enter at the question
                     # US: AAPL, MSFT, TSLA   India: INFY.NS, TCS.NS, RELIANCE.NS (NSE) or RELIANCE.BO (BSE)
 PERIOD = "1y"       # 1mo, 3mo, 6mo, 1y, 2y, 5y
-MODE = "report"     # "report"    = text report in the console + price chart in your browser
-                    # "dashboard" = the full interactive dashboard in your browser
+MODE = "dashboard"  # "dashboard" = the all-in-one dashboard in your browser (recommended)
+                    # "report"    = text report in the console + price chart in your browser
 SHOW_CHART = True   # report mode: also open the price chart in your browser
 
 # ---------------------------------------------------------------------------
@@ -85,7 +85,7 @@ def report(symbol):
     if SHOW_CHART and ensure({"plotly": "plotly"}):
         from stocklens.charts import price_chart
 
-        fig = price_chart(r.prices, r.timeline, r.ticker.market, show_macd=True)
+        fig = price_chart(r.prices, r.timeline, r.ticker.market, show_macd=True, cone=r.cone)
         fig.update_layout(title=dict(text=f"{r.name} ({r.ticker.yahoo})", x=0.01, y=0.98),
                           margin=dict(t=110), paper_bgcolor="white")
         path = Path(tempfile.gettempdir()) / f"stocklens_{r.ticker.yahoo}.html"

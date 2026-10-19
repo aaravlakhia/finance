@@ -54,7 +54,7 @@ def _base_layout(fig: go.Figure, t: dict, height: int) -> None:
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font=dict(family="system-ui, -apple-system, Segoe UI, sans-serif", color=t["ink2"], size=12),
         legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0,
-                    font=dict(color=t["ink2"])),
+                    font=dict(color=t["ink2"]), traceorder="normal"),
         hovermode="x unified",
         hoverlabel=dict(font=dict(family="system-ui, -apple-system, Segoe UI, sans-serif")),
     )
@@ -64,8 +64,32 @@ def _base_layout(fig: go.Figure, t: dict, height: int) -> None:
                      tickfont=dict(color=t["muted"]))
 
 
+def _add_cone(fig: go.Figure, prices: pd.DataFrame, cone: pd.DataFrame, market, mode: str) -> None:
+    """Shaded future ranges, joined to today's close so they fan out from the last price."""
+    t = THEMES[mode]
+    outer, inner = (("rgba(42,120,214,0.10)", "rgba(42,120,214,0.22)") if mode == "light"
+                    else ("rgba(57,135,229,0.16)", "rgba(57,135,229,0.32)"))
+    last = prices["Close"].iloc[-1]
+    c = pd.concat([pd.DataFrame({col: [last] for col in cone.columns}, index=[prices.index[-1]]), cone])
+    cs = market.currency_sign
+    for hi, lo, fill, label in (("p95", "p05", outer, "Very likely range (90%)"),
+                                ("p75", "p25", inner, "Likely range (50%)")):
+        fig.add_trace(go.Scatter(x=c.index, y=c[hi], line=dict(width=0), hoverinfo="skip", showlegend=False),
+                      row=1, col=1)
+        fig.add_trace(go.Scatter(
+            x=c.index, y=c[lo], line=dict(width=0), fill="tonexty", fillcolor=fill, name=label, legendrank=30,
+            customdata=c[[lo, hi]].to_numpy(),
+            hovertemplate=f"{label}: {cs}%{{customdata[0]:,.2f}} – {cs}%{{customdata[1]:,.2f}}<extra></extra>"),
+            row=1, col=1)
+    fig.add_trace(go.Scatter(x=c.index, y=c["p50"], line=dict(color=t["series"][0], width=1.5, dash="dot"),
+                             name="Middle of range", hoverinfo="skip", legendrank=29), row=1, col=1)
+    fig.add_vline(x=prices.index[-1], line=dict(color=t["axis"], width=1), row=1, col=1)
+    fig.add_annotation(x=prices.index[-1], y=1, yref="y domain", text="today", showarrow=False,
+                       xanchor="left", yanchor="top", xshift=4, font=dict(color=t["muted"], size=10))
+
+
 def price_chart(prices: pd.DataFrame, items: list[Item], market, mode: str = "light",
-                show_bands: bool = False, show_macd: bool = False) -> go.Figure:
+                show_bands: bool = False, show_macd: bool = False, cone: pd.DataFrame | None = None) -> go.Figure:
     t = THEMES[mode]
     s = t["series"]
     rows = 4 if show_macd else 3
@@ -81,12 +105,16 @@ def price_chart(prices: pd.DataFrame, items: list[Item], market, mode: str = "li
                                  fillcolor="rgba(137,135,129,0.14)", name="Bollinger band",
                                  hoverinfo="skip"), row=1, col=1)
 
+    if cone is not None and not cone.empty:
+        _add_cone(fig, prices, cone, market, mode)
+
     lines = [("Close", "Close", s[0], 2), ("SMA50", "50-day avg", s[1], 1.5), ("SMA200", "200-day avg", s[2], 1.5)]
     end_labels = []
     for col, label, color, width in lines:
         series = prices[col]
         if series.notna().any():
             fig.add_trace(go.Scatter(x=x, y=series, name=label, line=dict(color=color, width=width),
+                                     legendrank=len(end_labels) + 1,
                                      hovertemplate=f"{label}: {market.currency_sign}%{{y:,.2f}}<extra></extra>"),
                           row=1, col=1)
             last = series.dropna()
@@ -169,4 +197,66 @@ def financials_chart(statement: pd.DataFrame, market, mode: str = "light", freq:
                       margin=dict(l=64, r=8, t=36, b=40))
     fig.update_xaxes(showspikes=False, type="category")
     fig.update_yaxes(title_text=unit)
+    return fig
+
+
+def lines_chart(df: pd.DataFrame, colors: list[str], mode: str = "light", y_title: str = "",
+                hover: str = "%{y:,.1f}", height: int = 320) -> go.Figure:
+    """Several lines on one shared axis, each named at its right end."""
+    t = THEMES[mode]
+    fig = make_subplots(rows=1, cols=1)
+    labels = []
+    for col, color in zip(df.columns, colors):
+        series = df[col].dropna()
+        if series.empty:
+            continue
+        fig.add_trace(go.Scatter(x=series.index, y=series, name=col, line=dict(color=color, width=2),
+                                 hovertemplate=f"{col}: {hover}<extra></extra>"), row=1, col=1)
+        labels.append([series.iloc[-1], col, series.index[-1]])
+    _add_end_labels(fig, labels, df, t)
+    _base_layout(fig, t, height)
+    fig.update_layout(margin=dict(l=64, r=120, t=36, b=40))
+    fig.update_yaxes(title_text=y_title)
+    return fig
+
+
+def vs_market_chart(close: pd.Series, bench: pd.Series, name: str, bench_name: str,
+                    mode: str = "light") -> go.Figure | None:
+    """Stock and index both rebased to 100 at the start of the window (one shared axis)."""
+    def by_day(sr):
+        idx = sr.index.tz_localize(None) if sr.index.tz is not None else sr.index
+        return pd.Series(sr.to_numpy(), index=idx.normalize())
+
+    both = pd.concat([by_day(close), by_day(bench)], axis=1, keys=[name, bench_name], sort=True).dropna()
+    both = both[both.index >= by_day(close).index[0]]
+    if len(both) < 2:
+        return None
+    t = THEMES[mode]
+    return lines_chart(both / both.iloc[0] * 100, [t["series"][0], t["muted"]], mode,
+                       "Growth of 100", "%{y:,.1f}")
+
+
+def target_chart(price: float, low: float, mean: float, high: float, market, mode: str = "light") -> go.Figure:
+    """Analysts' low / average / high price targets against today's price."""
+    t = THEMES[mode]
+    cs = market.currency_sign
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=[low, high], y=[0, 0], mode="lines", line=dict(color=t["axis"], width=6),
+                             hoverinfo="skip", showlegend=False))
+    points = [(low, f"Low {cs}{low:,.0f}", t["muted"], "line-ns", 16, "top center"),
+              (high, f"High {cs}{high:,.0f}", t["muted"], "line-ns", 16, "top center"),
+              (mean, f"Avg target {cs}{mean:,.0f}", t["series"][0], "circle", 13, "top center"),
+              (price, f"Now {cs}{price:,.0f}", t["ink"], "diamond", 12, "bottom center")]
+    for x, text, color, symbol, size, pos in points:
+        fig.add_trace(go.Scatter(x=[x], y=[0], mode="markers+text", text=[text], textposition=pos,
+                                 textfont=dict(color=t["ink2"], size=11), showlegend=False,
+                                 marker=dict(color=color, symbol=symbol, size=size,
+                                             line=dict(color=color if symbol == "line-ns" else t["surface"], width=2)),
+                                 hovertemplate=f"{text}<extra></extra>"))
+    _base_layout(fig, t, 150)
+    lo_x, hi_x = min(low, price), max(high, price)
+    pad = (hi_x - lo_x) * 0.12 or 1
+    fig.update_layout(margin=dict(l=24, r=24, t=10, b=10), hovermode="closest")
+    fig.update_xaxes(range=[lo_x - pad, hi_x + pad], showspikes=False, showticklabels=False, linecolor="rgba(0,0,0,0)")
+    fig.update_yaxes(visible=False, range=[-1, 1])
     return fig

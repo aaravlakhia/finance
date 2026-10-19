@@ -54,6 +54,45 @@ def format_report(r: Report, news_count: int = 15) -> str:
     out.append("   ".join(facts))
     out.append("Performance: " + " | ".join(f"{k} {fmt.pct(v)}" for k, v in perf.items()))
 
+    if r.briefing:
+        out += ["", _rule("BRIEFING")]
+        out += [_wrap(f"  {line}", 2) for line in r.briefing]
+
+    if r.pillars:
+        total = f"{r.checklist_score:.1f}/10 {r.checklist_label}" if r.checklist_score is not None else "n/a"
+        out += ["", _rule(f"INVESTMENT CHECKLIST  {total}")]
+        for pl in r.pillars:
+            score = f"{pl.score:4.1f}" if pl.score is not None else " n/a"
+            bar = "█" * round(pl.score or 0) + "░" * (10 - round(pl.score or 0))
+            out.append(f"  {pl.name:<17}{score}  {bar}")
+            if pl.reasons:
+                out.append(_wrap(f"      {'; '.join(pl.reasons)}", 6))
+
+    out += ["", _rule("OUTLOOK (ranges and history, not predictions)")]
+    if not r.ranges.empty:
+        out.append(f"  {'Horizon':<10}{'Likely (50%)':>28}{'Very likely (90%)':>30}")
+        for label, row in r.ranges.iterrows():
+            out.append(f"  {label:<10}{fmt.price(row['low50'], m):>14} - {fmt.price(row['high50'], m):<11}"
+                       f"{fmt.price(row['low90'], m):>16} - {fmt.price(row['high90'], m)}")
+    if r.analogs:
+        out.append(_wrap(f"  Days like today ({r.analogs['setup']}):", 4))
+        for row in r.analogs["rows"]:
+            out.append(f"    {row['horizon']:<9} later: higher {row['pct_higher']:.0%} of the time, median "
+                       f"{fmt.pct(row['median'])}  (all days: {row['pct_higher_all']:.0%}, {fmt.pct(row['median_all'])};"
+                       f" {row['matches']} matches)")
+    if r.track:
+        out.append(_wrap(f"  Track record: this method called the 1-month direction right {r.track['accuracy']:.0%} of "
+                         f"the time in {r.track['tests']} past tests; always guessing 'up' scored {r.track['always_up']:.0%}.", 4))
+    if r.backtest:
+        b = r.backtest
+        out.append(_wrap(f"  Trend rule (own it only above the 200-day average) over {b['years']:.1f} years: "
+                         f"{fmt.pct(b['rule']['total'])} (worst drop {fmt.pct(b['rule']['max_drawdown'])}) vs buy-and-hold "
+                         f"{fmt.pct(b['hold']['total'])} (worst drop {fmt.pct(b['hold']['max_drawdown'])}).", 4))
+    if r.relative:
+        rel = r.relative
+        out.append(f"  Vs {m.benchmark_name} (1y): stock {fmt.pct(rel['stock'])}, index {fmt.pct(rel['index'])}, "
+                   f"beta {fmt.number(rel['beta'])}")
+
     out += ["", _rule(f"TREND  {r.verdict} (score {r.score:+d})")]
     for s in r.signals:
         out.append(_wrap(f"  {TONE[s.tone]} {s.text}", 4))

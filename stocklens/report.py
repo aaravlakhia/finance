@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 import pandas as pd
 import yfinance as yf
 
-from . import filings, fundamentals, marketdata, news, signals, timeline
+from . import briefing, filings, forecast, fundamentals, marketdata, news, scorecard, signals, timeline
 from .indicators import add_all
 from .models import Item, Signal
 from .symbols import Ticker, resolve
@@ -44,6 +44,19 @@ class Report:
     timeline: list[Item]           # news + filings + past events, newest first
     moves: list[Move]
     warnings: list[str] = field(default_factory=list)
+    # market context and the prediction lab
+    benchmark: pd.Series = field(default_factory=lambda: pd.Series(dtype=float))
+    relative: dict | None = None
+    cone: pd.DataFrame = field(default_factory=pd.DataFrame)
+    ranges: pd.DataFrame = field(default_factory=pd.DataFrame)
+    analogs: dict | None = None
+    track: dict | None = None
+    backtest: dict | None = None
+    # investment checklist and the plain-English summary
+    pillars: list = field(default_factory=list)
+    checklist_score: float | None = None
+    checklist_label: str = ""
+    briefing: list[str] = field(default_factory=list)
 
     @property
     def red_flags(self) -> list[Item]:
@@ -80,8 +93,9 @@ def build(symbol: str, market: str | None = None, period: str = "1y",
     yt = yf.Ticker(ticker.yahoo)
     warnings: list[str] = []
 
-    # Indicators like the 200-day average need extra history before the display window.
-    fetch_period = "5y" if period == "5y" else "2y"
+    # Extra history before the display window feeds the 200-day average, the
+    # "similar setups" statistics and the backtest.
+    fetch_period = "10y" if period == "5y" else "5y"
     try:
         hist = marketdata.history(yt, fetch_period)
     except Exception as exc:
@@ -110,6 +124,9 @@ def build(symbol: str, market: str | None = None, period: str = "1y",
         earnings = _safe("Earnings history", lambda: marketdata.past_earnings(yt, ticker), warnings, [])
         yahoo_items = (_safe("Yahoo news", lambda: marketdata.yahoo_news(yt), warnings, [])
                        if include_news else [])
+        bench = _safe(f"{ticker.market.benchmark_name} index",
+                      lambda: marketdata.history(yf.Ticker(ticker.market.benchmark), fetch_period)["Close"],
+                      warnings, pd.Series(dtype=float))
 
         google_items, news_warnings = news_job.result() if news_job else ([], [])
         filing_items, filing_warnings = filings_job.result() if filings_job else ([], [])
@@ -126,10 +143,17 @@ def build(symbol: str, market: str | None = None, period: str = "1y",
     sigs += signals.fundamental_signals(quarterly, "quarterly")
     score, verdict = signals.overall(sigs)
 
-    return Report(
+    close = hist["Close"]
+    r = Report(
         ticker=ticker, name=full_name, profile=prof, period=period, history=hist, prices=prices,
         signals=sigs, score=score, verdict=verdict, performance=signals.performance(hist),
         risk=signals.risk_stats(hist), quarterly=quarterly, annual=annual, upcoming=upcoming,
         timeline=items, moves=timeline.biggest_moves(prices, items, ticker.market),
-        warnings=warnings,
+        warnings=warnings, benchmark=bench, relative=signals.relative(close, bench),
+        cone=forecast.cone(close), ranges=forecast.ranges(close), analogs=forecast.analogs(hist),
+        track=forecast.track_record(hist), backtest=forecast.trend_backtest(hist),
     )
+    r.pillars = scorecard.evaluate(r)
+    r.checklist_score, r.checklist_label = scorecard.overall(r.pillars)
+    r.briefing = briefing.summarize(r)
+    return r

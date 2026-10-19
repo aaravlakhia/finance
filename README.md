@@ -16,6 +16,22 @@ it pulls together, in one place:
 - **The link between them:** every headline, filing and event is matched to the
   first trading day it could affect, along with that day's price move. The
   biggest moves in the period are listed next to the news that may explain them.
+- **Briefing:** everything above condensed into a few plain-English sentences.
+- **Outlook (prediction lab):** nobody can predict exact prices, so instead you get:
+  - the price range the stock is likely (50%) and very likely (90%) to be in after
+    1, 3 and 6 months, based on how much it usually moves (shaded on the chart);
+  - what happened after past days that looked like today (same trend and momentum);
+  - an honest **track record**: how often that method would have called the
+    direction right on this stock, compared with always guessing "up";
+  - a backtest of a simple trend rule against buy-and-hold.
+- **Investment checklist:** trend, growth, profitability, valuation, financial
+  health and news risk, each scored out of 10 with the reasons shown.
+- **Vs the market:** the stock against the S&P 500 or NIFTY 50, plus beta.
+- **Analyst targets and ownership:** low/average/high targets and consensus, and
+  how much insiders and institutions own.
+- **Invest calculator:** what a one-time investment or a monthly SIP would be
+  worth today (with XIRR).
+- **Watchlist:** cards with mini charts for up to 8 stocks at the top of the dashboard.
 
 It runs on an ordinary laptop. There's no database, no API keys and no machine-learning
 model to download. The core needs only `yfinance`, `pandas` and `requests`.
@@ -34,11 +50,10 @@ If you use Anaconda/Spyder (or IDLE, VS Code, PyCharm):
 4. When the console asks *"Which stock?"*, type a symbol (e.g. `TSLA` or `TCS.NS`,
    or several: `AAPL, TCS.NS`) and press Enter.
 
-The first run installs the missing packages automatically. The report appears in
-the console and the price chart opens in your browser. For the full dashboard, set
-`MODE = "dashboard"` and press Run again. It opens on the stock you typed, and you can
-switch stocks from the dropdown in its sidebar. To stop it, click the red Stop square
-above the console.
+The first run installs the missing packages automatically. The dashboard then opens
+in your browser on the stock you typed. Switch stocks from the dropdown in its sidebar
+and add your favourites to the watchlist. To stop it, click the red Stop square above
+the console. For a text report in the console instead, set `MODE = "report"` in `run.py`.
 
 ## Install
 
@@ -155,7 +170,8 @@ When a source fails, the report still prints. It lists what couldn't be loaded u
 ## Project layout
 
 ```
-app.py                  Streamlit dashboard
+app.py                  Streamlit dashboard (the all-in-one space)
+run.py                  one-click launcher for Spyder / IDLE / VS Code
 stocklens/
   cli.py                command-line interface
   report.py             fetches everything and builds one Report
@@ -167,6 +183,10 @@ stocklens/
   filings.py            SEC EDGAR and NSE announcements
   classify.py           topic / tone / red-flag keyword rules
   timeline.py           links items to price moves
+  forecast.py           likely ranges, "days like today", track record, backtest
+  scorecard.py          the six-pillar investment checklist
+  briefing.py           the plain-English summary
+  invest.py             lump-sum and SIP calculators (with XIRR)
   charts.py             Plotly charts for the dashboard
 tests/                  offline tests (no network needed)
 ```
